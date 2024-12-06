@@ -1,3 +1,4 @@
+# Entering Raw Mode
 The terminal is in canonical (cooked) mode by default, processing input by buffering until pressing ``Enter`` or ``EOF``. Raw mode disables this, turning off input buffering, special character handling, and other default terminal behaviors by modifying specific terminal flags. 
 To Enter raw mode in C language we will use the [``termios.h``](https://pubs.opengroup.org/onlinepubs/7908799/xsh/termios.h.html) header file by disabling the following features and enabling the last one.
 
