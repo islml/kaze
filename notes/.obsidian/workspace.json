@@ -1,0 +1,179 @@
+{
+  "main": {
+    "id": "e545589d1902c6eb",
+    "type": "split",
+    "children": [
+      {
+        "id": "45324b64a692a92c",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "fbe41df229a660bf",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Entering Raw Mode.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Entering Raw Mode"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "2e62e975db00c381",
+    "type": "split",
+    "children": [
+      {
+        "id": "3e804eb81702dfa6",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "55c71c7d1399359d",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "5b65c2974c71fc87",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "622b257a075f2fb6",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "right": {
+    "id": "d021c5c1c9f0d2bb",
+    "type": "split",
+    "children": [
+      {
+        "id": "228401e4082c45a9",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "38b68b2005edde39",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Key Bindings.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for Key Bindings"
+            }
+          },
+          {
+            "id": "5d22c570381ac21a",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "Key Bindings.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from Key Bindings"
+            }
+          },
+          {
+            "id": "d0ab61291816c3f1",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "81ce071947484990",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "Key Bindings.md"
+              },
+              "icon": "lucide-list",
+              "title": "Outline of Key Bindings"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false
+    }
+  },
+  "active": "fbe41df229a660bf",
+  "lastOpenFiles": [
+    "Kaze.md",
+    "Entering Raw Mode.md",
+    "Kaze 風",
+    "Kaze Notes/Kaze.md",
+    "Untitled",
+    "Kaze Notes",
+    "Untitled.canvas",
+    "2024-11-13.md",
+    "Key Bindings.md",
+    "Welcome.md"
+  ]
+}
