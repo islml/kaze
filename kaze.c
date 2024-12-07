@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
@@ -16,8 +17,11 @@
 
 // Some Esc sequences - with their sizes
 #define ESC(seq)     		"\x1b" seq 
-#define SCREEN_CLEAR 		ESC("[2J") 				  	// 4
+#define CLEAR_SCREEN		ESC("[2J") 				  	// 4
+#define CLEAR_LINE_RIGHT	ESC("[K")					// 3
 #define CURSOR_HOME  	 	ESC("[H")  					// 3
+#define CURSOR_HIDE			ESC("[?25l")				// 6
+#define CURSOR_SHOW 		ESC("[?25h")				// 6
 #define CURSOR_BOTTOM_RIGHT ESC("[999B") ESC("[999C")	// 12
 #define CURSOR_POSITION		ESC("[6n")					// 4
 #define CURSOR_UP    		ESC("[A")  					// 3
@@ -25,8 +29,17 @@
 #define CURSOR_RIGHT 		ESC("[C")  					// 3
 #define CURSOR_LEFT  		ESC("[D")  					// 3
 
-#define CTRL_KEY(k) ((k) & (0x1F))
+// Some colors & and texts - with their sizes
+#define RED 				ESC("[31m")					// 5 
+#define GREEN				ESC("[32m") 				// 5
+#define YELLOW				ESC("[33m")					// 5
+#define RESET 				ESC("[0m")					// 4
+#define BOLD 				ESC("[1m")					// 4
+#define UNDERLINE			ESC("[4m") 					// 4
 
+#define CTRL_KEY(k) 		((k) & (0x1F))
+#define ABUFF_INIT 			{NULL, 0}
+#define KAZE_VERSION		"0.0.1"
 /*** DATA ***/
 
 struct editorConfiguration {
@@ -43,7 +56,7 @@ struct editorConfiguration E;
 
 void die(const char *error)
 {
-	write(STDOUT_FILENO, SCREEN_CLEAR, 4);
+	write(STDOUT_FILENO, CLEAR_SCREEN, 4);
 	write(STDOUT_FILENO, CURSOR_HOME, 3);
 
 	perror(error);
@@ -112,35 +125,83 @@ int getWinSize(int *screenrows, int *screencols)
 	struct winsize ws;
 
 	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == - 1 || ws.ws_col == 0) {
-		if (write(STDOUT_FILENO, CURSOR_BOTTOM_RIGHT, 12) != 12)
+		if (write(STDOUT_FILENO, CURSOR_BOTTOM_RIGHT, 13) != 13)
 			return -1;
 		return getCursorPos(screenrows, screencols);
 	} else {
 		*screenrows = ws.ws_row;
-		*screenrows = ws.ws_col;
+		*screencols = ws.ws_col;
 		return 0;
 	}
 }
 
+/*** APPEND BUFFER ***/
+
+struct abuff {
+	char *buffer;
+	int len;
+};
+
+void bufferAppend(struct abuff *ab, const char *tobeadded, int len)
+{
+	char *new_buffer = realloc(ab->buffer, ab->len + len);
+	if (new_buffer == NULL)
+		return;
+	
+	memcpy(&new_buffer[ab->len], tobeadded, len);
+	ab->buffer = new_buffer;
+	ab->len += len;
+}
+
+void bufferFree(struct abuff *ab)
+{
+	free(ab->buffer);
+}
+
 /*** OUTPUT ***/
 
-void editorDrawRows()
+void editorDrawRows(struct abuff *ab)
 {
 	for (int y = 0; y < E.screenrows; y++) {
-		write(STDOUT_FILENO, "~", 1);
+		if (y == E.screenrows / 3) {
+			char welcomebuff[80];
+			int welcomelen = snprintf(welcomebuff, sizeof(welcomebuff), GREEN "Kaze (風) - Text editor" RESET);
+			if (welcomelen > E.screencols) 
+				welcomelen = E.screenrows;
 
-		if (y != E.screenrows) 
-			write(STDOUT_FILENO, "\r\n", 2);
+			int padding = (E.screencols - welcomelen) / 2;
+			if (padding) {
+				bufferAppend(ab, "~", 1);
+				padding--;
+			}
+			while (padding--) 
+				bufferAppend(ab, " ", 1);
+
+			bufferAppend(ab, welcomebuff, welcomelen);
+		} else {
+			bufferAppend(ab, "~", 1);
+		}
+		
+		bufferAppend(ab, CLEAR_LINE_RIGHT, 3); // clear line to the right
+		if (y != E.screenrows - 1) {
+			bufferAppend(ab, "\r\n", 2);
+		}
 	}
 }
 
-void editorResfreshScreen()
+void editorRefreshScreen()
 {
-	write(STDOUT_FILENO, SCREEN_CLEAR,4);
-	write(STDOUT_FILENO, CURSOR_HOME, 3);
+	struct abuff ab = ABUFF_INIT; 
 
-	editorDrawRows();
-	write(STDOUT_FILENO, CURSOR_HOME, 3);
+	bufferAppend(&ab, CURSOR_HIDE, 6);
+	// bufferAppend(&ab, CLEAR_SCREEN,4); -- replaced with CLEAR_LINE in drawRows
+	bufferAppend(&ab, CURSOR_HOME, 3);
+	editorDrawRows(&ab);
+	bufferAppend(&ab, CURSOR_HOME, 3);
+	bufferAppend(&ab, CURSOR_SHOW, 6);
+
+	write(STDOUT_FILENO, ab.buffer, ab.len);
+	bufferFree(&ab);
 }
 
 /*** INPUT ***/
@@ -151,7 +212,7 @@ void editorMapKeypress()
 
 	switch (c) {
 	case CTRL_KEY('q'):
-		write(STDOUT_FILENO, SCREEN_CLEAR, 4);
+		write(STDOUT_FILENO, CLEAR_SCREEN, 4);
 		write (STDOUT_FILENO, CURSOR_HOME, 3);
 		exit(0);
 		break;
@@ -172,7 +233,7 @@ int main()
 	initEditor();
 
 	while (1) {
-		editorResfreshScreen();
+		editorRefreshScreen();
 		editorMapKeypress();
 	}
 
