@@ -24,6 +24,7 @@
 #define CURSOR_SHOW 		ESC("[?25h")				// 6
 #define CURSOR_BOTTOM_RIGHT ESC("[999B") ESC("[999C")	// 12
 #define CURSOR_POSITION		ESC("[6n")					// 4
+#define CURSOR_MOVE_TO(x,y)	ESC("["#y";"#x)				// 6
 #define CURSOR_UP    		ESC("[A")  					// 3
 #define CURSOR_DOWN  		ESC("[B")  					// 3
 #define CURSOR_RIGHT 		ESC("[C")  					// 3
@@ -47,6 +48,7 @@ struct editorConfiguration {
 
 	int screenrows;
 	int screencols;
+	int cx, cy;	// x - horizontal (cols), y - vertical(rows) 
 
 };
 
@@ -169,7 +171,7 @@ void editorDrawRows(struct abuff *ab)
 			if (welcomelen > E.screencols) 
 				welcomelen = E.screenrows;
 
-			int padding = (E.screencols - welcomelen) / 2;
+			int padding = (E.screencols + 10 - welcomelen) / 2; // the +10 is for the 'GREEN' and 'RESET' sequences
 			if (padding) {
 				bufferAppend(ab, "~", 1);
 				padding--;
@@ -196,8 +198,13 @@ void editorRefreshScreen()
 	bufferAppend(&ab, CURSOR_HIDE, 6);
 	// bufferAppend(&ab, CLEAR_SCREEN,4); -- replaced with CLEAR_LINE in drawRows
 	bufferAppend(&ab, CURSOR_HOME, 3);
+	
 	editorDrawRows(&ab);
-	bufferAppend(&ab, CURSOR_HOME, 3);
+	
+	char buf[32];
+	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.cy + 1, E.cx + 1);
+	bufferAppend(&ab, buf, strlen(buf));
+	
 	bufferAppend(&ab, CURSOR_SHOW, 6);
 
 	write(STDOUT_FILENO, ab.buffer, ab.len);
