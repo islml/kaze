@@ -16,31 +16,39 @@
 /*** DEFINES ***/
 
 // Some Esc sequences - with their sizes
-#define ESC(seq)     		"\x1b" seq 
-#define CLEAR_SCREEN		ESC("[2J") 				  	// 4
-#define CLEAR_LINE_RIGHT	ESC("[K")					// 3
-#define CURSOR_HOME  	 	ESC("[H")  					// 3
-#define CURSOR_HIDE			ESC("[?25l")				// 6
-#define CURSOR_SHOW 		ESC("[?25h")				// 6
-#define CURSOR_BOTTOM_RIGHT ESC("[999B") ESC("[999C")	// 12
-#define CURSOR_POSITION		ESC("[6n")					// 4
-#define CURSOR_MOVE_TO(x,y)	ESC("["#y";"#x)				// 6
-#define CURSOR_UP    		ESC("[A")  					// 3
-#define CURSOR_DOWN  		ESC("[B")  					// 3
-#define CURSOR_RIGHT 		ESC("[C")  					// 3
-#define CURSOR_LEFT  		ESC("[D")  					// 3
+#define ESC					'\x1b'
+#define ESC_(seq)     		"\x1b" seq 
+#define CLEAR_SCREEN		ESC_("[2J") 			  	// 4
+#define CLEAR_LINE_RIGHT	ESC_("[K")					// 3
+#define CURSOR_HOME  	 	ESC_("[H")  				// 3
+#define CURSOR_HIDE			ESC_("[?25l")				// 6
+#define CURSOR_SHOW 		ESC_("[?25h")				// 6
+#define CURSOR_BOTTOM_RIGHT ESC_("[999B") ESC_("[999C")	// 12
+#define CURSOR_POSITION		ESC_("[6n")					// 4
+#define CURSOR_MOVE_TO(x,y)	ESC_("["#y";"#x)			// 6
+#define CURSOR_UP    		ESC_("[A")  				// 3
+#define CURSOR_DOWN  		ESC_("[B")  				// 3
+#define CURSOR_RIGHT 		ESC_("[C")  				// 3
+#define CURSOR_LEFT  		ESC_("[D")  				// 3
 
 // Some colors & and texts - with their sizes
-#define RED 				ESC("[31m")					// 5 
-#define GREEN				ESC("[32m") 				// 5
-#define YELLOW				ESC("[33m")					// 5
-#define RESET 				ESC("[0m")					// 4
-#define BOLD 				ESC("[1m")					// 4
-#define UNDERLINE			ESC("[4m") 					// 4
+#define RED 				ESC_("[31m")				// 5 
+#define GREEN				ESC_("[32m") 				// 5
+#define YELLOW				ESC_("[33m")				// 5
+#define RESET 				ESC_("[0m")					// 4
+#define BOLD 				ESC_("[1m")					// 4
+#define UNDERLINE			ESC_("[4m") 				// 4
 
 #define CTRL_KEY(k) 		((k) & (0x1F))
 #define ABUFF_INIT 			{NULL, 0}
 #define KAZE_VERSION		"0.0.1"
+
+enum editorKeys {
+	ARROW_UP  = 1000,
+	ARROW_DOWN,
+	ARROW_LEFT,
+	ARROW_RIGHT
+};
 /*** DATA ***/
 
 struct editorConfiguration {
@@ -90,15 +98,37 @@ void enterRawMode()
 		die("tcsetattr");
 }
 
-char editorReadKey()
+int editorReadKey()
 {
 	int nread;
-	char c;
-	while ((nread = read(STDIN_FILENO, &c, 1)) != 1) { 
+	char key;
+	while ((nread = read(STDIN_FILENO, &key, 1)) != 1) { 
 		if (nread == -1 && errno != EAGAIN) 
 			die("read");
 	}
-	return c;
+
+	if (key == '\x1b') { // Check if key press == ESC
+		char seq[3];
+		if (read(STDIN_FILENO, &seq[0], 1) != 1)
+			return ESC;
+		if (read(STDIN_FILENO, &seq[1], 1) != 1)
+			return ESC;
+		
+		if (seq[0] == '[') {
+			switch (seq[1]) {
+				case 'A':
+					return ARROW_UP;
+				case 'B': 
+					return ARROW_DOWN;
+				case 'C':
+					return ARROW_RIGHT;
+				case 'D':
+					return ARROW_LEFT;
+			}
+		}
+	}
+
+	return key;
 }
 
 int getCursorPos(int *screenrows, int *screencols)
@@ -213,16 +243,44 @@ void editorRefreshScreen()
 
 /*** INPUT ***/
 
+void editorMoveCursor(int key)
+{	
+	switch (key) {
+	case ARROW_UP:
+		if (E.cy != 0)
+			E.cy--;
+		break;
+	case ARROW_DOWN:
+		if (E.cy != E.screenrows - 1)
+			E.cy++;
+		break;
+	case ARROW_LEFT:
+		if (E.cx != 0)
+			E.cx--;
+		break;
+	case ARROW_RIGHT:
+		if (E.cx != E.screencols - 1)
+			E.cx++;
+		break;
+	}
+}
+
 void editorMapKeypress()
 {
-	char c = editorReadKey();
+	int key = editorReadKey();
 
-	switch (c) {
-	case CTRL_KEY('q'):
-		write(STDOUT_FILENO, CLEAR_SCREEN, 4);
-		write (STDOUT_FILENO, CURSOR_HOME, 3);
-		exit(0);
-		break;
+	switch (key) {
+		case CTRL_KEY('q'):
+			write(STDOUT_FILENO, CLEAR_SCREEN, 4);
+			write(STDOUT_FILENO, CURSOR_HOME, 3);
+			exit(0);
+			break;
+
+		case ARROW_UP:
+		case ARROW_DOWN:
+		case ARROW_LEFT:
+		case ARROW_RIGHT:
+			editorMoveCursor(key);
 	}
 }
 
