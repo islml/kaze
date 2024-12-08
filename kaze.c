@@ -25,11 +25,6 @@
 #define CURSOR_SHOW 		ESC_("[?25h")				// 6
 #define CURSOR_BOTTOM_RIGHT ESC_("[999B") ESC_("[999C")	// 12
 #define CURSOR_POSITION		ESC_("[6n")					// 4
-#define CURSOR_MOVE_TO(x,y)	ESC_("["#y";"#x)			// 6
-#define CURSOR_UP    		ESC_("[A")  				// 3
-#define CURSOR_DOWN  		ESC_("[B")  				// 3
-#define CURSOR_RIGHT 		ESC_("[C")  				// 3
-#define CURSOR_LEFT  		ESC_("[D")  				// 3
 
 // Some colors & and texts - with their sizes
 #define RED 				ESC_("[31m")				// 5 
@@ -47,7 +42,11 @@ enum editorKeys {
 	ARROW_UP  = 1000,
 	ARROW_DOWN,
 	ARROW_LEFT,
-	ARROW_RIGHT
+	ARROW_RIGHT,
+	HOME_KEY,
+	END_KEY,
+	PAGE_UP,
+	PAGE_DOWN
 };
 /*** DATA ***/
 
@@ -98,6 +97,24 @@ void enterRawMode()
 		die("tcsetattr");
 }
 
+/*
+	Escape sequences for some special keys:
+	- Arrow up    	: ESC + [ + A 
+	- Arrow down  	: ESC + [ + B
+	- Arrow right 	: ESC + [ + C
+	- Arrow left  	: ESC + [ + D 
+	- Page up     	: ESC + [ + 5 + ~
+	- Page down   	: ESC + [ + 6 + ~
+	- Home key    	: ESC + [ + 1 + ~
+					: ESC + [ + 7 + ~
+					: ESC + [ + H
+					: ESC + [ + O + H
+	- End key		: ESC + [ + 4 + ~
+					: ESC + [ + 8 + ~
+					: ESC + [ + F
+					: ESC + [ + O + F
+*/
+
 int editorReadKey()
 {
 	int nread;
@@ -115,19 +132,51 @@ int editorReadKey()
 			return ESC;
 		
 		if (seq[0] == '[') {
-			switch (seq[1]) {
-				case 'A':
-					return ARROW_UP;
-				case 'B': 
-					return ARROW_DOWN;
-				case 'C':
-					return ARROW_RIGHT;
-				case 'D':
-					return ARROW_LEFT;
+			if (seq[1] >= '0' && seq[1] <= '9') {
+				if (read(STDIN_FILENO, &seq[2], 1) != 1) 
+					return ESC;
+				if (seq[2] == '~') {
+					switch (seq[1]) {
+						case '5':
+							return PAGE_UP;
+						case '6':
+							return PAGE_DOWN;
+						case '1':
+						case '7':
+							return HOME_KEY;
+						case '4':
+						case '8':
+							return END_KEY;
+					}
+				}
+			} else {
+				switch (seq[1]) {
+					case 'A':
+						return ARROW_UP;
+					case 'B': 
+						return ARROW_DOWN;
+					case 'C':
+						return ARROW_RIGHT;
+					case 'D':
+						return ARROW_LEFT;
+					case 'H':
+						return HOME_KEY;
+					case 'F':
+						return END_KEY;
+				}
 			}
+		} else if (seq[0] == 'O') {
+			switch (seq[1]) {
+				case 'H':
+					return HOME_KEY;
+				case 'F':
+					return END_KEY;
+			}
+		} else {
+			return ESC;
 		}
-	}
-
+	} 
+	
 	return key;
 }
 
@@ -270,17 +319,34 @@ void editorMapKeypress()
 	int key = editorReadKey();
 
 	switch (key) {
-		case CTRL_KEY('q'):
+		case CTRL_KEY('q'): {
 			write(STDOUT_FILENO, CLEAR_SCREEN, 4);
 			write(STDOUT_FILENO, CURSOR_HOME, 3);
 			exit(0);
 			break;
+		}
 
 		case ARROW_UP:
 		case ARROW_DOWN:
 		case ARROW_LEFT:
 		case ARROW_RIGHT:
 			editorMoveCursor(key);
+			break;
+
+		case PAGE_UP:
+		case PAGE_DOWN: {
+			int times = E.screenrows;
+			while (times--)
+				editorMoveCursor(key == PAGE_UP ? ARROW_UP : ARROW_DOWN);
+			break;
+		}
+
+		case HOME_KEY:
+			E.cx = 0;
+			break;
+		case END_KEY:
+			E.cx = E.screencols - 1;
+			break;
 	}
 }
 
