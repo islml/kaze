@@ -43,6 +43,7 @@ enum editorKeys {
 	ARROW_DOWN,
 	ARROW_LEFT,
 	ARROW_RIGHT,
+	DEL_KEY,
 	HOME_KEY,
 	END_KEY,
 	PAGE_UP,
@@ -113,6 +114,7 @@ void enterRawMode()
 					: ESC + [ + 8 + ~
 					: ESC + [ + F
 					: ESC + [ + O + F
+	- Delete key    : ESC + [ + 3 + ~
 */
 
 int editorReadKey()
@@ -147,6 +149,8 @@ int editorReadKey()
 						case '4':
 						case '8':
 							return END_KEY;
+						case '3':
+							return DEL_KEY;
 					}
 				}
 			} else {
