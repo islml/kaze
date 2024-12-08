@@ -17,13 +17,13 @@
 
 // Some Esc sequences - with their sizes
 #define ESC					'\x1b'
-#define ESC_(seq)     		"\x1b" seq 
-#define CLEAR_SCREEN		ESC_("[2J") 			  	// 4
+#define ESC_(seq)			"\x1b" seq 
+#define CLEAR_SCREEN		ESC_("[2J")					// 4
 #define CLEAR_LINE_RIGHT	ESC_("[K")					// 3
-#define CURSOR_HOME  	 	ESC_("[H")  				// 3
+#define CURSOR_HOME			ESC_("[H")					// 3
 #define CURSOR_HIDE			ESC_("[?25l")				// 6
 #define CURSOR_SHOW 		ESC_("[?25h")				// 6
-#define CURSOR_BOTTOM_RIGHT ESC_("[999B") ESC_("[999C")	// 12
+#define CURSOR_BOTTOM_RIGHT	ESC_("[999B") ESC_("[999C") // 12
 #define CURSOR_POSITION		ESC_("[6n")					// 4
 
 // Some colors & and texts - with their sizes
