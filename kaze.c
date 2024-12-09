@@ -4,12 +4,17 @@
 
 /*** INCLUDES ***/
 
+#define _DEFAULT_SOURCE
+#define _BSD_SOURCE
+#define _GNU_SOURCE
+
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -49,13 +54,21 @@ enum editorKeys {
 	PAGE_UP,
 	PAGE_DOWN
 };
+
 /*** DATA ***/
+
+typedef struct erow {
+	int size;
+	char *chars;
+} erow;
 
 struct editorConfiguration {
 	struct termios org_term;
-
+	erow *row;
+	int numrows;
 	int screenrows;
 	int screencols;
+	int rowoff;
 	int cx, cy;	// x - horizontal (cols), y - vertical(rows) 
 
 };
@@ -76,7 +89,7 @@ void die(const char *error)
 void exitRawMode() 
 {
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.org_term) == -1) 
-		die("exitRawMode");
+		die(RED "exitRawMode" RESET);
 }
 
 void enterRawMode()
@@ -220,6 +233,41 @@ int getWinSize(int *screenrows, int *screencols)
 	}
 }
 
+/*** ROW OPERATIONS ***/
+
+void editorAppendRow(char *line, size_t linelen)
+{
+	E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
+
+	int idx = E.numrows;
+	E.row[idx].size = linelen;
+	E.row[idx].chars = malloc(linelen + 1);
+	memcpy(E.row[idx].chars, line, linelen);
+	E.row[idx].chars[linelen] = '\0';
+	E.numrows++;
+}
+
+/*** FILE I/O ***/
+
+void editorOpen(char *filename)
+{
+	FILE *fp = fopen(filename, "r");
+	if (!fp)
+		die("fopen");
+
+	char *line = NULL;
+	size_t linecap = 0;
+	ssize_t linelen;
+	while ((linelen = getline(&line, &linecap, fp)) != -1) {
+		while (linelen > 0 && (line[linelen - 1] == '\n' || line[linelen - 1] == '\n'))
+			linelen--;
+		
+		editorAppendRow(line, linelen);
+	}
+	free(line);
+	fclose(fp);
+}
+
 /*** APPEND BUFFER ***/
 
 struct abuff {
@@ -245,28 +293,43 @@ void bufferFree(struct abuff *ab)
 
 /*** OUTPUT ***/
 
+void editorScroll() 
+{
+	if (E.cy < E.rowoff) 
+		E.rowoff = E.cy;
+	if (E.cy >= E.rowoff + E.screenrows)
+		E.rowoff = E.cy - E.screenrows + 1;
+}
+
 void editorDrawRows(struct abuff *ab)
 {
 	for (int y = 0; y < E.screenrows; y++) {
-		if (y == E.screenrows / 3) {
-			char welcomebuff[80];
-			int welcomelen = snprintf(welcomebuff, sizeof(welcomebuff), GREEN "Kaze (風) - Text editor" RESET);
-			if (welcomelen > E.screencols) 
-				welcomelen = E.screenrows;
+		int filerow = y + E.rowoff;
+		if (filerow >= E.numrows) {
+			if (E.numrows == 0 && y == E.screenrows / 3) {
+				char welcomebuff[80];
+				int welcomelen = snprintf(welcomebuff, sizeof(welcomebuff), GREEN "Kaze (風) - Text editor" RESET);
+				if (welcomelen > E.screencols) 
+					welcomelen = E.screenrows;
 
-			int padding = (E.screencols + 10 - welcomelen) / 2; // the +10 is for the 'GREEN' and 'RESET' sequences
-			if (padding) {
+				int padding = (E.screencols + 10 - welcomelen) / 2; // the +10 is for the 'GREEN' and 'RESET' sequences
+				if (padding) {
+					bufferAppend(ab, "~", 1);
+					padding--;
+				}
+				while (padding--) 
+					bufferAppend(ab, " ", 1);
+
+				bufferAppend(ab, welcomebuff, welcomelen);
+			} else {
 				bufferAppend(ab, "~", 1);
-				padding--;
 			}
-			while (padding--) 
-				bufferAppend(ab, " ", 1);
-
-			bufferAppend(ab, welcomebuff, welcomelen);
 		} else {
-			bufferAppend(ab, "~", 1);
+			int len = E.row[filerow].size;
+			if (len > E.screencols) 
+				len = E.screencols;
+			bufferAppend(ab, E.row[filerow].chars, len);
 		}
-		
 		bufferAppend(ab, CLEAR_LINE_RIGHT, 3); // clear line to the right
 		if (y != E.screenrows - 1) {
 			bufferAppend(ab, "\r\n", 2);
@@ -276,6 +339,8 @@ void editorDrawRows(struct abuff *ab)
 
 void editorRefreshScreen()
 {
+	editorScroll();
+
 	struct abuff ab = ABUFF_INIT; 
 
 	bufferAppend(&ab, CURSOR_HIDE, 6);
@@ -285,7 +350,7 @@ void editorRefreshScreen()
 	editorDrawRows(&ab);
 	
 	char buf[32];
-	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.cy + 1, E.cx + 1);
+	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, E.cx + 1);
 	bufferAppend(&ab, buf, strlen(buf));
 	
 	bufferAppend(&ab, CURSOR_SHOW, 6);
@@ -299,22 +364,22 @@ void editorRefreshScreen()
 void editorMoveCursor(int key)
 {	
 	switch (key) {
-	case ARROW_UP:
-		if (E.cy != 0)
-			E.cy--;
-		break;
-	case ARROW_DOWN:
-		if (E.cy != E.screenrows - 1)
-			E.cy++;
-		break;
-	case ARROW_LEFT:
-		if (E.cx != 0)
-			E.cx--;
-		break;
-	case ARROW_RIGHT:
-		if (E.cx != E.screencols - 1)
-			E.cx++;
-		break;
+		case ARROW_UP:
+			if (E.cy != 0)
+				E.cy--;
+			break;
+		case ARROW_DOWN:
+			if (E.cy < E.numrows)
+				E.cy++;
+			break;
+		case ARROW_LEFT:
+			if (E.cx != 0)
+				E.cx--;
+			break;
+		case ARROW_RIGHT:
+			if (E.cx != E.screencols - 1)
+				E.cx++;
+			break;
 	}
 }
 
@@ -358,20 +423,30 @@ void editorMapKeypress()
 
 void initEditor()
 {
+	E.cx = 0; E.cy = 0;
+	E.rowoff = 0;
+	E.row = NULL;
+	E.numrows = 0;
+	
 	if (getWinSize(&E.screenrows, &E.screencols) == -1)
 		die("getWinSize");
 }
 
-int main() 
+int main(int argc, char *argv[]) 
 {
 	enterRawMode();
 	initEditor();
+	if (argc >= 2) {
+		editorOpen(argv[1]);
+	} else {
+		printf(YELLOW "usage: ./kaze <filename>\r\n" RESET);
+		return 0;
+	}
 
 	while (1) {
 		editorRefreshScreen();
 		editorMapKeypress();
 	}
 
-	//
 	return 0;
 }
