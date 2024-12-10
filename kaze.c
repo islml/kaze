@@ -42,6 +42,7 @@
 #define CTRL_KEY(k) 		((k) & (0x1F))
 #define ABUFF_INIT 			{NULL, 0}
 #define KAZE_VERSION		"0.0.1"
+#define KAZE_TAB_STOP		4
 
 enum editorKeys {
 	ARROW_UP  = 1000,
@@ -60,6 +61,8 @@ enum editorKeys {
 typedef struct erow {
 	int size;
 	char *chars;
+	int rsize;
+	char *render;
 } erow;
 
 struct editorConfiguration {
@@ -69,6 +72,7 @@ struct editorConfiguration {
 	int screenrows;
 	int screencols;
 	int rowoff;
+	int coloff;
 	int cx, cy;	// x - horizontal (cols), y - vertical(rows) 
 
 };
@@ -139,7 +143,7 @@ int editorReadKey()
 			die("read");
 	}
 
-	if (key == '\x1b') { // Check if key press == ESC
+	if (key == ESC) { // Check if key press == ESC
 		char seq[3];
 		if (read(STDIN_FILENO, &seq[0], 1) != 1)
 			return ESC;
@@ -235,6 +239,31 @@ int getWinSize(int *screenrows, int *screencols)
 
 /*** ROW OPERATIONS ***/
 
+void editorUpdateRow(erow *row)
+{
+	int tabs = 0;
+	for (int i = 0; i < row->size; i++)
+		if (row->chars[i] == '\t')
+			tabs++;
+
+	free(row->render);
+	row->render = malloc(row->size + tabs * (KAZE_TAB_STOP - 1) + 1);
+
+	int idx = 0;
+	for (int i = 0; i < row->size; i++) {
+		if (row->chars[i] == '\t') {
+			row->render[idx++] = ' ';
+			while (idx % KAZE_TAB_STOP != 0)
+				row->render[idx++] = ' ';
+		} else {
+			row->render[idx++] = row->chars[i];
+		}
+	}
+
+	row->render[idx] = '\0';
+	row->rsize = idx;
+}
+
 void editorAppendRow(char *line, size_t linelen)
 {
 	E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
@@ -244,6 +273,11 @@ void editorAppendRow(char *line, size_t linelen)
 	E.row[idx].chars = malloc(linelen + 1);
 	memcpy(E.row[idx].chars, line, linelen);
 	E.row[idx].chars[linelen] = '\0';
+
+	E.row[idx].rsize = 0;
+	E.row[idx].render = NULL;
+	editorUpdateRow(&E.row[idx]);
+
 	E.numrows++;
 }
 
@@ -259,7 +293,7 @@ void editorOpen(char *filename)
 	size_t linecap = 0;
 	ssize_t linelen;
 	while ((linelen = getline(&line, &linecap, fp)) != -1) {
-		while (linelen > 0 && (line[linelen - 1] == '\n' || line[linelen - 1] == '\n'))
+		while (linelen > 0 && (line[linelen - 1] == '\n' || line[linelen - 1] == '\r'))
 			linelen--;
 		
 		editorAppendRow(line, linelen);
@@ -299,6 +333,11 @@ void editorScroll()
 		E.rowoff = E.cy;
 	if (E.cy >= E.rowoff + E.screenrows)
 		E.rowoff = E.cy - E.screenrows + 1;
+
+	if (E.cx < E.coloff)
+		E.coloff = E.cx;
+	if (E.cx >= E.coloff + E.screencols)
+		E.coloff = E.cx - E.screencols + 1;
 }
 
 void editorDrawRows(struct abuff *ab)
@@ -325,11 +364,14 @@ void editorDrawRows(struct abuff *ab)
 				bufferAppend(ab, "~", 1);
 			}
 		} else {
-			int len = E.row[filerow].size;
+			int len = E.row[filerow].rsize - E.coloff;
+			if (len < 0) 
+				len = 0;
 			if (len > E.screencols) 
 				len = E.screencols;
-			bufferAppend(ab, E.row[filerow].chars, len);
+			bufferAppend(ab, &E.row[filerow].render[E.coloff], len);
 		}
+
 		bufferAppend(ab, CLEAR_LINE_RIGHT, 3); // clear line to the right
 		if (y != E.screenrows - 1) {
 			bufferAppend(ab, "\r\n", 2);
@@ -350,7 +392,7 @@ void editorRefreshScreen()
 	editorDrawRows(&ab);
 	
 	char buf[32];
-	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, E.cx + 1);
+	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, (E.cx - E.coloff) + 1);
 	bufferAppend(&ab, buf, strlen(buf));
 	
 	bufferAppend(&ab, CURSOR_SHOW, 6);
@@ -363,6 +405,8 @@ void editorRefreshScreen()
 
 void editorMoveCursor(int key)
 {	
+	erow *tmprow = (E.cy >= E.numrows) ? NULL : &E.row[E.cy];
+
 	switch (key) {
 		case ARROW_UP:
 			if (E.cy != 0)
@@ -373,14 +417,27 @@ void editorMoveCursor(int key)
 				E.cy++;
 			break;
 		case ARROW_LEFT:
-			if (E.cx != 0)
+			if (E.cx != 0) {
 				E.cx--;
+			} else if (E.cy > 0) {
+				E.cy--;
+				E.cx = E.row[E.cy].size;
+			}
 			break;
 		case ARROW_RIGHT:
-			if (E.cx != E.screencols - 1)
+			if (tmprow && E.cx < tmprow->size) {
 				E.cx++;
+			} else if (tmprow && E.cx == tmprow->size) {
+				E.cy++;
+				E.cx = 0;
+			}
 			break;
 	}
+
+	tmprow = (E.cy >= E.numrows) ? NULL : &E.row[E.cy];
+	int rowlen = tmprow ? tmprow->size : 0;
+	if (E.cx > rowlen)
+		E.cx = rowlen;
 }
 
 void editorMapKeypress()
@@ -423,8 +480,10 @@ void editorMapKeypress()
 
 void initEditor()
 {
-	E.cx = 0; E.cy = 0;
+	E.cx = 0; 
+	E.cy = 0;
 	E.rowoff = 0;
+	E.coloff = 0;
 	E.row = NULL;
 	E.numrows = 0;
 	
