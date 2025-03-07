@@ -11,7 +11,8 @@ import (
 func main() {
 	var kaze editor.Term
 	kaze.EnterRawMode()
-	
+	defer kaze.ExitRawMode()
+
 	for {
 		buf := make([]byte, 1)
 		os.Stdin.Read(buf)

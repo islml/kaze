@@ -27,3 +27,7 @@ func (t *Term) EnterRawMode() error {
 
 	return unix.IoctlSetTermios(int(os.Stdin.Fd()), unix.TCSETS, rawTerm)
 }
+
+func (t *Term) ExitRawMode() error {
+	return unix.IoctlSetTermios(int(os.Stdin.Fd()), unix.TCSETS, &t.OrigTerm)
+}
